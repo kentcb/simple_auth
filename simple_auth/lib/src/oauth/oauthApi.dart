@@ -20,31 +20,20 @@ class OAuthApi extends AuthenticatedApi {
   List<String> scopes;
   bool forceRefresh = false;
 
-  OAuthApi(identifier, this.clientId, this.clientSecret, this.tokenUrl,
-      this.authorizationUrl, this.redirectUrl,
-      {this.scopes,
-      http.Client client,
-      Converter converter,
-      bool usePkce = false,
-      AuthStorage authStorage})
-      : super(identifier,
-            client: client, converter: converter, authStorage: authStorage) {
-    authenticator = OAuthAuthenticator(identifier, clientId, clientSecret,
-        tokenUrl, authorizationUrl, redirectUrl, scopes, usePkce);
+  OAuthApi(identifier, this.clientId, this.clientSecret, this.tokenUrl, this.authorizationUrl, this.redirectUrl,
+      {this.scopes, http.Client client, Converter converter, bool usePkce = false, AuthStorage authStorage})
+      : super(identifier, client: client, converter: converter, authStorage: authStorage) {
+    authenticator = OAuthAuthenticator(
+        identifier, clientId, clientSecret, tokenUrl, authorizationUrl, redirectUrl, scopes, usePkce);
   }
 
   OAuthApi.fromIdAndSecret(String identifier, this.clientId, this.clientSecret,
-      {this.scopes,
-      http.Client client,
-      Converter converter,
-      AuthStorage authStorage})
-      : super(identifier,
-            client: client, converter: converter, authStorage: authStorage);
+      {this.scopes, http.Client client, Converter converter, AuthStorage authStorage})
+      : super(identifier, client: client, converter: converter, authStorage: authStorage);
 
   OAuthApi.fromAuthenticator(String identifier, this.authenticator,
       {http.Client client, Converter converter, AuthStorage authStorage})
-      : super(identifier,
-            client: client, converter: converter, authStorage: authStorage) {
+      : super(identifier, client: client, converter: converter, authStorage: authStorage) {
     this.clientId = authenticator.clientId;
     this.clientSecret = authenticator.clientSecret;
     this.tokenUrl = authenticator.tokenUrl;
@@ -58,25 +47,26 @@ class OAuthApi extends AuthenticatedApi {
     if (scopesRequired && (scopes?.length ?? 0) == 0) {
       throw Exception("Scopes are required");
     }
-    OAuthAccount account =
-        currentOauthAccount ?? await loadAccountFromCache<OAuthAccount>();
+    OAuthAccount account = currentOauthAccount ?? await loadAccountFromCache<OAuthAccount>();
     if (account != null &&
-        ((account.refreshToken?.isNotEmpty ?? false) ||
-            (account.expiresIn != null && account.expiresIn <= 0))) {
-      var valid = account.isValid();
-      if (!valid || forceRefresh ?? false) {
+        ((account.refreshToken?.isNotEmpty ?? false) || (account.expiresIn != null && account.expiresIn <= 0))) {
+      final firstValidCheck = account.isValid();
+      if (!firstValidCheck || forceRefresh ?? false) {
         //If there is no interent, give them the current expired account
         if (!await pingUrl(tokenUrl)) {
           return account;
         }
-        if (await refreshAccount(account))
-          account = currentOauthAccount ?? loadAccountFromCache<OAuthAccount>();
+        if (await refreshAccount(account)) account = currentOauthAccount ?? loadAccountFromCache<OAuthAccount>();
       }
-      if (account.isValid()) {
+      final secondValidCheck = account.isValid();
+
+      if (firstValidCheck != secondValidCheck) {
+        // Only save if necessary (to reduce risk of corruption).
         saveAccountToCache(account);
-        currentAccount = account;
-        return account;
       }
+
+      currentAccount = account;
+      return account;
     }
 
     var _authenticator = getAuthenticator();
@@ -86,8 +76,7 @@ class OAuthApi extends AuthenticatedApi {
     else if (sharedShowAuthenticator != null)
       sharedShowAuthenticator(_authenticator);
     else
-      throw new Exception(
-          "You are required to implement the 'showAuthenticator or sharedShowAuthenticator");
+      throw new Exception("You are required to implement the 'showAuthenticator or sharedShowAuthenticator");
     var token = await _authenticator.getAuthCode();
     if (token?.isEmpty ?? true) {
       throw new Exception("Null Token");
@@ -101,21 +90,15 @@ class OAuthApi extends AuthenticatedApi {
   @override
   Future<Request> authenticateRequest(Request request) async {
     Map<String, String> map = new Map.from(request.headers);
-    map["Authorization"] =
-        "${currentOauthAccount.tokenType} ${currentOauthAccount.token}";
+    map["Authorization"] = "${currentOauthAccount.tokenType} ${currentOauthAccount.token}";
     return request.replace(headers: map);
   }
 
-  Future<OAuthAccount> getAccountFromAuthCode(
-      WebAuthenticator authenticator) async {
+  Future<OAuthAccount> getAccountFromAuthCode(WebAuthenticator authenticator) async {
     if (tokenUrl?.isEmpty ?? true) throw new Exception("Invalid tokenURL");
     var postData = await authenticator.getTokenPostData(clientSecret);
     var resp = await httpClient.post(tokenUrl,
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: postData);
+        headers: {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body: postData);
     var map = convert.json.decode(resp.body);
     var result = OAuthResponse.fromJson(map);
     var account = OAuthAccount(identifier,
@@ -131,8 +114,7 @@ class OAuthApi extends AuthenticatedApi {
 
   Authenticator getAuthenticator() => authenticator;
   @override
-  getAccountFromMap<T extends Account>(Map<String, dynamic> data) =>
-      OAuthAccount.fromJson(data);
+  getAccountFromMap<T extends Account>(Map<String, dynamic> data) => OAuthAccount.fromJson(data);
   @override
   Future<bool> refreshAccount(Account _account) async {
     try {
@@ -141,11 +123,7 @@ class OAuthApi extends AuthenticatedApi {
       var postData = await getRefreshTokenPostData(account);
 
       var resp = await httpClient.post(tokenUrl,
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          body: postData);
+          headers: {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body: postData);
       var map = convert.json.decode(resp.body);
       var result = OAuthResponse.fromJson(map);
       if (result?.error?.isNotEmpty ?? false) {
@@ -159,8 +137,7 @@ class OAuthApi extends AuthenticatedApi {
         } else
           throw new Exception("${result.error} : ${result.errorDescription}");
       }
-      if (result.refreshToken?.isNotEmpty ?? false)
-        account.refreshToken = result.refreshToken;
+      if (result.refreshToken?.isNotEmpty ?? false) account.refreshToken = result.refreshToken;
       account.tokenType = result.tokenType;
       account.token = result.accessToken;
       account.expiresIn = result.expiresIn;

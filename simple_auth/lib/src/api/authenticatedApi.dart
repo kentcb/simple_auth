@@ -5,8 +5,7 @@ import "dart:convert" as Convert;
 
 abstract class AuthenticatedApi extends Api {
   AuthStorage _authStorage;
-  AuthenticatedApi(String identifier,
-      {http.Client client, Converter converter, AuthStorage authStorage})
+  AuthenticatedApi(String identifier, {http.Client client, Converter converter, AuthStorage authStorage})
       : super(identifier: identifier, client: client, converter: converter) {
     _authStorage = authStorage ?? AuthStorage.shared;
   }
@@ -80,6 +79,5 @@ abstract class AuthenticatedApi extends Api {
     }
   }
 
-  getAccountFromMap<T extends Account>(Map<String, dynamic> data) =>
-      Account.fromJson(data);
+  getAccountFromMap<T extends Account>(Map<String, dynamic> data) => Account.fromJson(data);
 }
